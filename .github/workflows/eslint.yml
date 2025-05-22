@@ -32,25 +32,13 @@ jobs:
             --output-file "${{ github.workspace }}/eslint-results.sarif"
         continue-on-error: true
 
-      - name: Calculate ESLint Score
+      - name: Run ESLint with Score
         run: |
-          # Extract errors/warnings from ESLint output (adapt regex as needed)
-          ESLINT_OUTPUT=$(npx eslint . --config .eslintrc.js --ext .js,.ts --format json)
-          ERRORS=$(echo "$ESLINT_OUTPUT" | jq '.[].errorCount' | awk '{sum+=$1} END {print sum}')
-          WARNINGS=$(echo "$ESLINT_OUTPUT" | jq '.[].warningCount' | awk '{sum+=$1} END {print sum}')
+          # Install the formatter
+          npm install eslint-formatter-score --save-dev
       
-          # Define weights and max issues
-          ERROR_WEIGHT=2
-          WARNING_WEIGHT=1
-          TOTAL_FILES=$(find . -name "*.js" -o -name "*.ts" | wc -l)
-          MAX_ISSUES=$((TOTAL_FILES * 2))  # Adjust multiplier as needed
-      
-          # Calculate score
-          SCORE=$(awk -v e=$ERRORS -v w=$WARNINGS -v ew=$ERROR_WEIGHT -v ww=$WARNING_WEIGHT -v max=$MAX_ISSUES \
-                    'BEGIN {print 100 - ((e*ew + w*ww) / max * 100)}')
-      
-          # Export score for future steps
-          echo "ESLint Score: $SCORE%"
+          # Run ESLint and extract the score
+          SCORE=$(npx eslint . --ext .js,.ts --format score | grep -oP 'ESLint Score: \K\d+')
           echo "SCORE=$SCORE" >> $GITHUB_ENV
 
       - name: Debug - Verify SARIF file
