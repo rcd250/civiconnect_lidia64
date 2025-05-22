@@ -32,13 +32,35 @@ jobs:
             --output-file "${{ github.workspace }}/eslint-results.sarif"
         continue-on-error: true
 
-      - name: Run ESLint with Score
+      - name: Run ESLint and Calculate Score
         run: |
-          # Install the formatter
-          npm install eslint-formatter-score --save-dev
+          # Install ESLint
+          npm install eslint
       
-          # Run ESLint and extract the score
-          SCORE=$(npx eslint . --ext .js,.ts --format score | grep -oP 'ESLint Score: \K\d+')
+          # Run ESLint and output to JSON
+          npx eslint . --ext .js,.ts --format json --output-file eslint-results.json
+      
+          # Calculate score from JSON output
+          echo "Calculating score..."
+          SCORE=$(node -e "
+            const results = require('./eslint-results.json');
+            const totalErrors = results.reduce((sum, file) => sum + file.errorCount, 0);
+            const totalWarnings = results.reduce((sum, file) => sum + file.warningCount, 0);
+            
+            // Adjust weights as needed (errors count more than warnings)
+            const errorWeight = 2;
+            const warningWeight = 1;
+            const totalFiles = results.length;
+            
+            // Max possible issues (adjust multiplier as needed)
+            const maxIssues = totalFiles * 5;
+            
+            // Calculate score (0-100%)
+            const score = Math.max(0, 100 - ((totalErrors * errorWeight + totalWarnings * warningWeight) / maxIssues * 100));
+            console.log(score.toFixed(1));
+          ")
+      
+          echo "ESLint Score: $SCORE%"
           echo "SCORE=$SCORE" >> $GITHUB_ENV
 
       - name: Debug - Verify SARIF file
